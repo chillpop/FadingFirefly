@@ -1,5 +1,17 @@
+
+#define USE_12BIT_PWM 1
+#if USE_12BIT_PWM
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+#define PWM_MAX 4095
+
+#endif
+
 extern const uint8_t PROGMEM gamma[];
 
+#define ANALOG_MAX 255
 #define MSEC_PER_SEC 1000
 #define RANDOM_DELAY_TIME random(2 * MSEC_PER_SEC, 4 * MSEC_PER_SEC)
 
@@ -41,8 +53,8 @@ namespace Pattern {
 //  Timeline oneFlash(float rampUpDuration, float onDuration, float rampDownDuration, float delayDuration) {
 //    Keyframe frames[] = {
 //      keyframe(0, 0),
-//      keyframe(rampUpDuration, 255), //ramp up
-//      keyframe(onDuration, 255), //on
+//      keyframe(rampUpDuration, ANALOG_MAX), //ramp up
+//      keyframe(onDuration, ANALOG_MAX), //on
 //      keyframe(rampDownDuration, 0), //ramp down
 //      keyframe(delayDuration, 0), //delay for a few seconds
 //    };
@@ -54,12 +66,12 @@ namespace Pattern {
   Timeline *doubleFlash() {
     static Keyframe frames[] = {
       keyframe(0.0, 0),
-      keyframe(RAMP_UP_TIME, 255),
-      keyframe(ON_TIME, 255),
+      keyframe(RAMP_UP_TIME, ANALOG_MAX),
+      keyframe(ON_TIME, ANALOG_MAX),
       keyframe(RAMP_DOWN_TIME, 0),
       keyframe(OFF_TIME, 0), //pause for 0.3 sec
-      keyframe(RAMP_UP_TIME, 255),
-      keyframe(ON_TIME, 255),
+      keyframe(RAMP_UP_TIME, ANALOG_MAX),
+      keyframe(ON_TIME, ANALOG_MAX),
       keyframe(RAMP_DOWN_TIME, 0),
     };
     
@@ -71,7 +83,7 @@ namespace Pattern {
   Timeline *singleFlash() {
     static Keyframe frames[] = {
       keyframe(0, 0),
-      keyframe(RAMP_UP_TIME, 255), //ramp up
+      keyframe(RAMP_UP_TIME, ANALOG_MAX), //ramp up
       keyframe(RAMP_DOWN_TIME, 0), //ramp down
     };
     static Timeline t = { 0, 3, frames };
@@ -79,11 +91,24 @@ namespace Pattern {
     return &t;
   }
 
+#if USE_12BIT_PWM
+  Timeline *singleFlash12Bit() {
+    static Keyframe frames[] = {
+      keyframe(0, 0),
+      keyframe(RAMP_UP_TIME, PWM_MAX), //ramp up
+      keyframe(RAMP_DOWN_TIME, 0), //ramp down
+    };
+    static Timeline t = { 0, 3, frames };
+    timelineSetDuration(&t);
+    return &t;
+  }
+#endif
+
   Timeline *pyralisMale() {
     static Keyframe frames[] = {
       keyframe(0.0, 0),
-      keyframe(RAMP_UP_TIME, 255),
-      keyframe(0.25, 255),
+      keyframe(RAMP_UP_TIME, ANALOG_MAX),
+      keyframe(0.25, ANALOG_MAX),
       keyframe(RAMP_DOWN_TIME, 0),
       keyframe(1.0, 0),
     };
@@ -113,7 +138,6 @@ class Flasher {
     this->delayTime = delayTime;
 
     this->timeline = timeline;
-    pinMode(pin, OUTPUT);
   }
 
   public:
@@ -133,6 +157,12 @@ class Flasher {
     //delay starting the pattern up to 5 seconds so not all instances flash at once
     f->cycleTime = -random(0, 5000);
     return f;
+  }
+
+  virtual void setValue(int value) {
+    //gamma correct the value
+    int newValue = pgm_read_byte(&gamma[value]);
+    analogWrite(this->pin, newValue);
   }
   
   virtual void update(int deltaTime) {
@@ -165,12 +195,34 @@ class Flasher {
       }
     }
 
-    //gamma correct the value
-    newValue = pgm_read_byte(&gamma[newValue]);
-    analogWrite(this->pin, newValue);    
+    this->setValue(newValue);
   }
 
 };
+
+#if USE_12BIT_PWM
+
+class PWMFlasher : public Flasher {
+  protected:
+  PWMFlasher(int pin, Timeline *timeline, int delayTime) : Flasher(pin, timeline, delayTime) { 
+    //nothing to override
+  }
+
+  public:
+  //Single flash with a random delay 
+  static PWMFlasher *SingleFlasher(int pin) {
+    return new PWMFlasher(pin, Pattern::singleFlash12Bit(), RANDOM_DELAY_TIME);
+  }
+
+  virtual void setValue(int value) {
+    //gamma correct the value
+    int newValue = (int)(pow((float)value / (float)PWM_MAX, 2.8) * PWM_MAX + 0.5);
+    //set the PWM value
+    pwm.setPin(this->pin, newValue);
+  }
+};
+
+#endif
 
 /*
 class DigitalFlasher : public Flasher {
@@ -255,7 +307,13 @@ int analogOutPins[] = {
 };
 #endif
 
+#if USE_12BIT_PWM
+const int PWMPinCount = 16;
+const int FlasherCount = AnalogPinCount + PWMPinCount;
+#else
 const int FlasherCount = AnalogPinCount;
+#endif
+
 Flasher *flashers[FlasherCount];
 
 //const int FlasherCount = 6;
@@ -274,8 +332,26 @@ void setup() {
 //  Serial.begin(9600);
   for (int i = 0; i < AnalogPinCount; i++) {
     int pin = analogOutPins[i];
+    pinMode(pin, OUTPUT);
     flashers[i] = Flasher::SingleFlasher(pin);
   }
+
+#if USE_12BIT_PWM
+  pwm.begin();
+  pwm.setPWMFreq(1600);  // This is the maximum PWM frequency
+
+#if !defined(ARDUINO_AVR_TRINKET3) && !defined(ARDUINO_AVR_TRINKET5)
+  // save I2C bitrate
+  uint8_t twbrbackup = TWBR;
+  // must be changed after calling Wire.begin() (inside pwm.begin())
+  TWBR = 12; // upgrade to 400KHz!
+#endif
+
+  for (int i = 0; i < PWMPinCount; i++) {
+    flashers[i + AnalogPinCount] = PWMFlasher::SingleFlasher(i);
+  }
+#endif
+
 }
 
 void loop() {
@@ -307,4 +383,3 @@ const uint8_t PROGMEM gamma[] = {
   177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
   215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 
   };
-
