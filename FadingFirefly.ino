@@ -225,52 +225,6 @@ class PWMFlasher : public Flasher {
 
 #endif
 
-/*
-class DigitalFlasher : public Flasher {
-  protected:
-  DigitalFlasher(int pin, Timeline *timeline, int delayTime) : Flasher(pin, timeline, delayTime) {
-  }
-
-  public:
-  static DigitalFlasher *singleFlasher(int pin) {
-    static Keyframe frames[] = {
-      keyframe(0, HIGH),
-      keyframe(0.3, LOW),
-    };
-    static Timeline t = { 300, 2, frames };
-
-    DigitalFlasher *f = new DigitalFlasher(pin, &t, RANDOM_DELAY_TIME);
-    return f;
-  }
-
-  void update(int deltaTime) {
-    this->cycleTime = (this->cycleTime + deltaTime);
-    
-    if (this->cycleTime > this->timeline->duration) {
-      this->cycleTime = -this->delayForCycle();
-    }
-
-    Keyframe prevFrame = this->timeline->frames[0];
-    int newValue = prevFrame.value;    
-
-    long prevFrameTime = prevFrame.time;
-    unsigned int runningDuration = prevFrame.time;
-    for (int i = 1; i < this->timeline->numFrames; i++) {
-      Keyframe frame = this->timeline->frames[i];
-
-      runningDuration += frame.time;
-      if (runningDuration > this->cycleTime) {
-        break;
-      } else {
-        newValue = frame.value;
-      }
-    }
-
-    digitalWrite(this->pin, newValue);
-  }
-
-};
-*/
 
 #if defined(ARDUINO_AVR_UNO) || defined(ARDUINO_AVR_PROTRINKET3) || defined(ARDUINO_AVR_PROTRINKET5)
 //analog out pins for Uno, Trinket pro
