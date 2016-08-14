@@ -9,6 +9,69 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 #endif
 
+///Analog pins for various boards
+#if defined(ARDUINO_AVR_UNO) || defined(ARDUINO_AVR_PROTRINKET3) || defined(ARDUINO_AVR_PROTRINKET5)
+//analog out pins for Uno, Trinket pro
+const int AnalogPinCount = 6;
+int analogOutPins[] = {
+  3,
+  5,
+  6,
+  9,
+  10,
+  11,
+};
+
+#elif defined(ARDUINO_AVR_FEATHER32U4)
+//analog out pins for Feather 32U4
+const int AnalogPinCount = 7;
+int analogOutPins[] = {
+  5,
+  6,
+  9,
+  10,
+  11,
+  12,
+  13,
+};
+
+#elif defined(ARDUINO_SAMD_FEATHER_M0)
+//TODO: the analog pins on the Feather M0 aren't worked as documented
+//analog out pins for Feather M0
+const int AnalogPinCount = 4;
+int analogOutPins[] = {
+//  0,
+//  1, digital blink ^
+  5,
+  6,
+//  9,
+//  10,
+  11,
+//  12,
+//  13,
+//  A0,
+  A1,
+//  A2, nothing ^
+//  A3, digital blink v
+//  A4,
+//  A5,
+//  20,
+//  21,
+//  22,
+//  23,
+//  24,
+};
+
+#elif defined(ARDUINO_AVR_TRINKET3) || defined(ARDUINO_AVR_TRINKET5)
+//analog out pins for Trinket
+const int AnalogPinCount = 3;
+int analogOutPins[] = {
+  0,
+  1,
+  4,
+};
+#endif
+
 extern const uint8_t PROGMEM pwm_gamma[];
 
 #define ANALOG_MAX 255
@@ -225,41 +288,6 @@ class PWMFlasher : public Flasher {
 
 #endif
 
-
-#if defined(ARDUINO_AVR_UNO) || defined(ARDUINO_AVR_PROTRINKET3) || defined(ARDUINO_AVR_PROTRINKET5)
-//analog out pins for Uno, Trinket pro
-const int AnalogPinCount = 6;
-int analogOutPins[] = {
-  3,
-  5,
-  6,
-  9,
-  10,
-  11,
-};
-
-#elif defined(ARDUINO_AVR_FEATHER32U4)
-//analog out pins for Feather
-const int AnalogPinCount = 7;
-int analogOutPins[] = {
-  5,
-  6,
-  9,
-  10,
-  11,
-  12,
-  13,
-};
-
-#elif defined(ARDUINO_AVR_TRINKET3) || defined(ARDUINO_AVR_TRINKET5)
-//analog out pins for Trinket
-const int AnalogPinCount = 3;
-int analogOutPins[] = {
-  0,
-  1,
-  4,
-};
-#endif
 
 #if USE_12BIT_PWM
 const int PWMPinCount = 16;
