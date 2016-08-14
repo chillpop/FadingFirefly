@@ -24,14 +24,13 @@ int analogOutPins[] = {
 
 #elif defined(ARDUINO_AVR_FEATHER32U4)
 //analog out pins for Feather 32U4
-const int AnalogPinCount = 7;
+const int AnalogPinCount = 6;
 int analogOutPins[] = {
   5,
   6,
   9,
   10,
   11,
-  12,
   13,
 };
 
