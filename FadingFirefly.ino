@@ -9,7 +9,7 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 #endif
 
-extern const uint8_t PROGMEM gamma[];
+extern const uint8_t PROGMEM pwm_gamma[];
 
 #define ANALOG_MAX 255
 #define MSEC_PER_SEC 1000
@@ -161,7 +161,8 @@ class Flasher {
 
   virtual void setValue(int value) {
     //gamma correct the value
-    int newValue = pgm_read_byte(&gamma[value]);
+    int newValue = pgm_read_byte(&pwm_gamma[value]);
+//    int newValue = (int)(pow((float)value / (float)ANALOG_MAX, 2.8) * ANALOG_MAX + 0.5);
     analogWrite(this->pin, newValue);
   }
   
@@ -364,7 +365,7 @@ void loop() {
 }
 
 //LUT for gamma brightness correction
-const uint8_t PROGMEM gamma[] = {
+const uint8_t PROGMEM pwm_gamma[] = {
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,
     1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,
