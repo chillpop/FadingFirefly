@@ -73,6 +73,10 @@ int analogOutPins[] = {
 
 extern const uint8_t PROGMEM pwm_gamma[];
 
+#define FLASH_PROBABILITY_MAX 100
+//probability of a given flasher deciding NOT to flash
+int flashInhibitionProbabilityThreshold = FLASH_PROBABILITY_MAX;
+
 #define ANALOG_MAX 255
 #define MSEC_PER_SEC 1000
 #define RANDOM_DELAY_TIME random(2 * MSEC_PER_SEC, 4 * MSEC_PER_SEC)
@@ -193,6 +197,10 @@ class Flasher {
     return this->delayTime;
   }
 
+  bool shouldSkipCycle() {
+    return random(FLASH_PROBABILITY_MAX) < flashInhibitionProbabilityThreshold;
+  }
+
   protected:
   Flasher(int pin, Timeline *timeline, int delayTime) {
     this->pin = pin;
@@ -235,6 +243,10 @@ class Flasher {
       this->cycleTime = -this->delayForCycle();
     }
     if (this->cycleTime < 0) {
+      if (this->cycleTime + (3 * deltaTime) > 0 && this->shouldSkipCycle()) {
+        //if we're close to starting a new cycle, check if we should skip it
+        this->cycleTime = -this->delayForCycle();
+      }
       //we delay a cycle by setting cycle time to be negative
       return;
     }
@@ -309,8 +321,38 @@ Flasher *flashers[FlasherCount];
 
 unsigned long lastTime = 0;
 
+int photoCellReading = 0;
+
+//these measurements are based on a 10K pulldown resistor on the photocell
+//and eyeballed measurements in the yard
+//while the photocell reading is above this threshold, do nothing
+#define PHOTOCELL_MAX_THRESHOLD 350
+//if the photocell reading is below this threshold, do not inhibit flashes
+#define PHOTOCELL_MIN_THRESHOLD 30
+void calculateFlashInhibitionThreshold() {
+  const int minThreshold = 0;
+  const int maxThreshold = FLASH_PROBABILITY_MAX;
+  //map photocell readings to flash inhibition probability
+  int mapped = map(photoCellReading, PHOTOCELL_MIN_THRESHOLD, PHOTOCELL_MAX_THRESHOLD, minThreshold, maxThreshold);
+  flashInhibitionProbabilityThreshold = constrain(mapped, minThreshold, maxThreshold);
+}
+
+void readPhotoCell() {
+  const int readingCount = 4;
+  const int pin = A0;
+
+  int average = 0;
+  for (int i = 0; i < readingCount; i++) {
+    average += analogRead(pin);
+    delay(1);
+  }
+
+  photoCellReading = average /  readingCount;
+  calculateFlashInhibitionThreshold();
+}
+
 void setup() {
-//  Serial.begin(9600);
+  randomSeed(analogRead(A1));
   for (int i = 0; i < AnalogPinCount; i++) {
     int pin = analogOutPins[i];
     pinMode(pin, OUTPUT);
@@ -335,7 +377,21 @@ void setup() {
 
 }
 
+void turnAllFlashersOff() {
+  for (int i = 0; i < FlasherCount; i++) {
+    flashers[i]->setValue(0);
+  }
+}
+
 void loop() {
+  readPhotoCell();
+  if (photoCellReading > PHOTOCELL_MAX_THRESHOLD) {
+    turnAllFlashersOff();
+    delay(5 * MSEC_PER_SEC);
+    lastTime = millis();
+    return;
+  }
+
   unsigned long currentTime = millis();
   int deltaTime = currentTime - lastTime;
   lastTime = currentTime;
